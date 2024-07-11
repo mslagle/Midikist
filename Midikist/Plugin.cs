@@ -38,6 +38,7 @@ namespace Midikist
         public static ConfigEntry<string> InstrumentConfig { get; private set; }
         public static ConfigEntry<int> NoteMinimum { get; private set; }
         public static ConfigEntry<int> TimeDelay { get; private set; }
+        public static ConfigEntry<bool> RemoveOtherBlocks { get; private set; }
 
         public static ConfigEntry<string> SoundBlockTypeConfig { get; private set; }
         public static ConfigEntry<float> SoundBlockSizeX { get; private set; }
@@ -56,7 +57,8 @@ namespace Midikist
             AddMidiToLevelButton = this.Config.Bind<KeyCode>("Mod", "Add Midi Button", KeyCode.F9, new ConfigDescription($"Button to add a midi to the current level.  Will also delete all other noteblocks!"));
             InstrumentConfig = this.Config.Bind<string>("Mod", "Instrument", Instrument.PIANO.ToString(), new ConfigDescription("Instrument to use", new AcceptableValueList<string>(Enum.GetNames(typeof(Instrument)))));
             NoteMinimum = this.Config.Bind<int>("Mod", "MinimumNote", 48, new ConfigDescription("The minimum note to convert from Midi to Zeepkist value."));
-            TimeDelay = this.Config.Bind<int>("Mod", "Time Delay", 1000, new ConfigDescription("The delay in milliseconds before adding any notes"));
+            TimeDelay = this.Config.Bind<int>("Mod", "Time Delay", 2000, new ConfigDescription("The delay in milliseconds before adding any notes"));
+            RemoveOtherBlocks = this.Config.Bind<bool>("Mod", "Remove Other Sound Blocks", true, new ConfigDescription("Will remove any other sound blocks in the level if set"));
 
             SoundBlockTypeConfig = this.Config.Bind<string>("Sound Block", "Type", SoundBlockType.Block.ToString(), new ConfigDescription("Soundblock type to use", new AcceptableValueList<string>(Enum.GetNames(typeof(SoundBlockType)))));
             SoundBlockSizeX = this.Config.Bind<float>("Sound Block", "Size X", 1.0F, new ConfigDescription("The X size of the sound block"));
@@ -168,29 +170,33 @@ namespace Midikist
             var midiFile = midiFiles.First();
 
             // Delete all existing note blocks
-            var existingSoundBlocks = LevelEditorInstance.undoRedo.allBlocksDictionary.Where(x => x.Value.blockID == SOUND_BLOCK_ID).Select(x => x.Value).ToList();
-            Logger.LogInfo($"Deleting existing {existingSoundBlocks.Count()} number of sound blocks");
-
-            List<string> jsonList = LevelEditorInstance.undoRedo.ConvertBlockListToJSONList(existingSoundBlocks);
-            List<string> stringList = LevelEditorInstance.undoRedo.ConvertSelectionToStringList(existingSoundBlocks);
-            List<string> after = new List<string>();
-            List<BlockProperties> theBlocks = new List<BlockProperties>();
-
-            for (int index = 0; index < jsonList.Count; ++index)
+            if (RemoveOtherBlocks.Value)
             {
-                after.Add((string)null);
-                theBlocks.Add((BlockProperties)null);
+                var existingSoundBlocks = LevelEditorInstance.undoRedo.allBlocksDictionary.Where(x => x.Value.blockID == SOUND_BLOCK_ID).Select(x => x.Value).ToList();
+                Logger.LogInfo($"Deleting existing {existingSoundBlocks.Count()} number of sound blocks");
+
+                List<string> jsonList = LevelEditorInstance.undoRedo.ConvertBlockListToJSONList(existingSoundBlocks);
+                List<string> stringList = LevelEditorInstance.undoRedo.ConvertSelectionToStringList(existingSoundBlocks);
+                List<string> after = new List<string>();
+                List<BlockProperties> theBlocks = new List<BlockProperties>();
+
+                for (int index = 0; index < jsonList.Count; ++index)
+                {
+                    after.Add((string)null);
+                    theBlocks.Add((BlockProperties)null);
+                }
+
+                Change_Collection change = LevelEditorInstance.undoRedo.ConvertBeforeAndAfterListToCollection(jsonList, after, theBlocks, stringList, new List<string>());
+
+                foreach (var block in existingSoundBlocks)
+                {
+                    Object.Destroy((Object)block.gameObject);
+                }
+
+                // Force re-validation of level + notify history
+                LevelEditorInstance.validation.BreakLock(change, "Midikist");
             }
 
-            Change_Collection change = LevelEditorInstance.undoRedo.ConvertBeforeAndAfterListToCollection(jsonList, after, theBlocks, stringList, new List<string>());
-
-            foreach (var block in existingSoundBlocks)
-            {
-                Object.Destroy((Object)block.gameObject);
-            }
-
-            // Force re-validation of level + notify history
-            LevelEditorInstance.validation.BreakLock(change, "Midikist");
 
             // Convert the midi file
             Logger.LogInfo($"Midi file loaded from {midiFile}, adding notes to the map...");

@@ -36,12 +36,18 @@
     <PackageReference Include="Microsoft.NETFramework.ReferenceAssemblies" Version="1.0.3" PrivateAssets="all" />
   </ItemGroup>
   
+  <ItemGroup>
+    <None Update="Am_I_Blue_AB.mid">
+      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+    </None>
+  </ItemGroup>
+  
   <Target Name="CopyToZeepkist" AfterTargets="Build" Condition=" '$(Configuration)' == 'Debug'">
     <Message Text="Creating mono debug edition of plugin" Importance="high" />
     <Exec Command="&quot;C:\Program Files\Unity 2021.3.10f1\Editor\Data\MonoBleedingEdge\bin\mono.exe&quot; &quot;C:\Program Files\Unity 2021.3.10f1\Editor\Data\MonoBleedingEdge\lib\mono\4.5\pdb2mdb.exe&quot; $(ProjectName).dll" WorkingDirectory="$(TargetDir)" />
 
     <ItemGroup>
-      <OutputFiles Include="$(TargetDir)$(ProjectName).*;$(TargetDir)Microsoft*.dll;$(TargetDir)**\Melanchall.DryWetMidi.dll" />
+      <OutputFiles Include="$(TargetDir)$(ProjectName).*;$(TargetDir)Microsoft*.dll;$(TargetDir)**\Melanchall.DryWetMidi.dll;$(TargetDir)*.mid" />
     </ItemGroup>
     <Copy SourceFiles="%(OutputFiles.Fullpath)" DestinationFolder="M:\SteamLibrary\steamapps\common\Zeepkist\BepInEx\plugins\midikist" />
   </Target>
@@ -49,7 +55,7 @@
   <Target Name="CreatePackage" AfterTargets="Build" Condition=" '$(Configuration)' == 'Release'">
     <Message Text="Packaging Plugin" Importance="high" />
     <ItemGroup>
-      <OutputFiles Include="$(TargetDir)$(ProjectName).*;$(TargetDir)Microsoft*.dll;$(TargetDir)**\Melanchall.DryWetMidi.dll" />
+      <OutputFiles Include="$(TargetDir)$(ProjectName).*;$(TargetDir)Microsoft*.dll;$(TargetDir)**\Melanchall.DryWetMidi.dll;$(TargetDir)*.mid" />
     </ItemGroup>
     <Copy SourceFiles="%(OutputFiles.Fullpath)" DestinationFolder="$(TargetDir)\package" />
   </Target>
