@@ -37,4 +37,4 @@ jobs:
 
       - name: Build mod file
         run: |
-          Compress-Archive ./Zeepkist.Random/bin/Release/net472/package/* mod.zip
+          Compress-Archive ./Midikist/bin/Release/net472/package/* mod.zip
