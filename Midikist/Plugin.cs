@@ -44,6 +44,7 @@ namespace Midikist
         public static ConfigEntry<float> SoundBlockSizeX { get; private set; }
         public static ConfigEntry<float> SoundBlockSizeY { get; private set; }
         public static ConfigEntry<float> SoundBlockSizeZ { get; private set; }
+        public static ConfigEntry<float> SoundBlockMoveDown { get; private set; }
 
         public static LEV_LevelEditorCentral LevelEditorInstance { get; set; }
         public static int SOUND_BLOCK_ID = 2279;
@@ -64,6 +65,7 @@ namespace Midikist
             SoundBlockSizeX = this.Config.Bind<float>("Sound Block", "Size X", 1.0F, new ConfigDescription("The X size of the sound block"));
             SoundBlockSizeY = this.Config.Bind<float>("Sound Block", "Size Y", .5F, new ConfigDescription("The Y size of the sound block"));
             SoundBlockSizeZ = this.Config.Bind<float>("Sound Block", "Size Z", .1F, new ConfigDescription("The Z size of the sound block"));
+            SoundBlockMoveDown = this.Config.Bind<float>("Sound Block", "Move Up", 10F, new ConfigDescription("Will move the block up this many units.  Will follow rotation so 90 degrees will move left or right."));
 
 
             LevelEditorApi.EnteredLevelEditor += LevelEditorApi_EnteredLevelEditor;
@@ -273,7 +275,9 @@ namespace Midikist
             var positionLerped = Vector3.Lerp(lastPoint.Position, currentPoint.Position, (float)percentage);
             var rotationLerped = Quaternion.Lerp(lastPoint.Rotation, currentPoint.Rotation, (float)percentage);
 
-            return Tuple.Create(positionLerped, rotationLerped);
+            var postionFinal = positionLerped + (rotationLerped * Vector3.up * SoundBlockMoveDown.Value);
+
+            return Tuple.Create(postionFinal, rotationLerped);
         }
 
         public void CreateSoundBlock(Vector3 position, Quaternion rotation, Instrument instrument, int note)
@@ -341,7 +345,7 @@ namespace Midikist
         }
 
 
-            public void OnDestroy()
+        public void OnDestroy()
         {
             harmony?.UnpatchSelf();
             harmony = null;
