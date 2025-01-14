@@ -11,6 +11,7 @@ using System.Collections.Generic;
 using System.IO;
 using System.Linq;
 using System.Security.Cryptography;
+using System.Threading;
 using UnityEngine;
 using ZeepkistClient;
 using ZeepkistNetworking;
@@ -120,7 +121,15 @@ namespace Midikist
             if (Input.GetKeyDown(Plugin.AddMidiToLevelButton.Value))
             {
                 Logger.LogInfo("Button pressed!");
-                AddMidiToLevel();
+                try
+                {
+                    AddMidiToLevel();
+                } catch (Exception ex)
+                {
+                    Logger.LogError(ex);
+                    PlayerManager.Instance.messenger.LogError("Error converting midi file, see log entry!", 2.0f);
+                }
+
             }
         }
 
@@ -149,6 +158,8 @@ namespace Midikist
                 PlayerManager.Instance.messenger.Log("Test level before adding midi", 1.0f);
                 return;
             }
+
+            Logger.LogInfo("Getting data points from saved json...");
             List<Point> points = Plugin.Storage.LoadFromJson<List<Point>>(uid);
 
             // Load midi file
@@ -171,24 +182,38 @@ namespace Midikist
             }
             var midiFile = midiFiles.First();
 
+            // Valid to move on - lets init a few things for undo and teamkist to work
+            //Create a list of blocks before the creation. //Same count, but null.
+            List<string> before = new List<string>();
+
+            //Create a list of selections before the creation, which is empty, as everything got deselected.
+            List<string> beforeSelection = new List<string>();
+
+            //Stores the JSON strings of the blocks after creation.
+            List<string> after = new List<string>();
+
+            //Stores the selection after creation.
+            List<string> afterSelection = new List<string>();
+
+            // Deselect all blocks
+            LevelEditorInstance.selection.DeselectAllBlocks(true, nameof(LevelEditorInstance.selection.ClickNothing));
+
+            //Stores the BlockProperties objects of the created blocks.
+            List<BlockProperties> blockList = new List<BlockProperties>();
+
             // Delete all existing note blocks
             if (RemoveOtherBlocks.Value)
             {
                 var existingSoundBlocks = LevelEditorInstance.undoRedo.allBlocksDictionary.Where(x => x.Value.blockID == SOUND_BLOCK_ID).Select(x => x.Value).ToList();
                 Logger.LogInfo($"Deleting existing {existingSoundBlocks.Count()} number of sound blocks");
 
-                List<string> jsonList = LevelEditorInstance.undoRedo.ConvertBlockListToJSONList(existingSoundBlocks);
-                List<string> stringList = LevelEditorInstance.undoRedo.ConvertSelectionToStringList(existingSoundBlocks);
-                List<string> after = new List<string>();
-                List<BlockProperties> theBlocks = new List<BlockProperties>();
+                before = LevelEditorInstance.undoRedo.ConvertBlockListToJSONList(existingSoundBlocks);
+                beforeSelection = LevelEditorInstance.undoRedo.ConvertSelectionToStringList(existingSoundBlocks);
+                blockList = existingSoundBlocks.ToList();
+                after = Enumerable.Repeat((string)null, before.Count).ToList();
+                afterSelection = new List<string>();
 
-                for (int index = 0; index < jsonList.Count; ++index)
-                {
-                    after.Add((string)null);
-                    theBlocks.Add((BlockProperties)null);
-                }
-
-                Change_Collection change = LevelEditorInstance.undoRedo.ConvertBeforeAndAfterListToCollection(jsonList, after, theBlocks, stringList, new List<string>());
+                Change_Collection change = LevelEditorInstance.undoRedo.ConvertBeforeAndAfterListToCollection(before, after, blockList, beforeSelection, afterSelection);
 
                 foreach (var block in existingSoundBlocks)
                 {
@@ -199,7 +224,6 @@ namespace Midikist
                 LevelEditorInstance.validation.BreakLock(change, "Midikist");
             }
 
-
             // Convert the midi file
             Logger.LogInfo($"Midi file loaded from {midiFile}, adding notes to the map...");
             var midi = MidiFile.Read(midiFile);
@@ -208,8 +232,8 @@ namespace Midikist
             // Get the instrument to use
             Instrument instrumentToUse = (Instrument)Enum.Parse(typeof(Instrument), InstrumentConfig.Value);
 
-            // Place the note
-            foreach (var note in midi.GetNotes())
+            // Create the notes
+            List<BlockPropertyJSON> blocks = midi.GetNotes().Select(note =>
             {
                 var timespan = TimeConverter.ConvertTo<MetricTimeSpan>(note.Time, tempoMap);
                 Logger.LogDebug($"Note: {note.NoteName} - {note.Time} - {timespan}");
@@ -219,12 +243,45 @@ namespace Midikist
                 if (lerp == null)
                 {
                     Logger.LogError("Unable to find any close points, assuming recorded run is done!");
-                    return;
+                    return null;
                 }
-                
+
                 int noteNumber = ConvertNote(note.NoteNumber);
-                CreateSoundBlock(lerp.Item1, lerp.Item2, instrumentToUse, noteNumber);
+                return CreateSoundBlock(lerp.Item1, lerp.Item2, instrumentToUse, noteNumber);
+            }).Where(x => x != null).ToList();
+
+            before = Enumerable.Repeat((string)null, blocks.Count).ToList();
+            beforeSelection = new List<string>();
+            after = new List<string>();
+            afterSelection = new List<string>();
+            blockList = new List<BlockProperties>();
+
+            foreach (var block in blocks)
+            {
+                string newUID = PlayerManager.Instance.GenerateUniqueIDforBlocks(block.blockID.ToString());
+                BlockProperties bp = LevelEditorInstance.undoRedo.GenerateNewBlock(block, newUID);
+
+                //Add the new block to the list of blocks.
+                blockList.Add(bp);
+
+                //Add a json representation to the after blocks list.
+                after.Add(bp.ConvertBlockToJSON_v15_string());
             }
+
+            //Create a new selection list using the UIDs of the blocks.
+            afterSelection = LevelEditorInstance.undoRedo.ConvertSelectionToStringList(blockList);
+
+            //Convert all the before and after data into a Change_Collection.
+            Change_Collection collection = LevelEditorInstance.undoRedo.ConvertBeforeAndAfterListToCollection(
+                before, after,
+                blockList,
+                beforeSelection, afterSelection);
+
+            //Register the creation
+            LevelEditorInstance.validation.BreakLock(collection, "Midikist");
+
+            //Select all the created objects.
+            LevelEditorInstance.selection.UndoRedoReselection(blockList);
         }
 
         public int ConvertNote(int noteNumber)
@@ -271,7 +328,7 @@ namespace Midikist
             }
 
             Logger.LogDebug($"Before Point: {lastPoint} - After Point: {currentPoint}");
-            var percentage = Math.Abs(lastPoint.Time + bufferMs - timespan.TotalMilliseconds) / Math.Abs(lastPoint.Time - currentPoint.Time);
+            var percentage = Math.Abs(lastPoint.Time - bufferMs - timespan.TotalMilliseconds) / Math.Abs(lastPoint.Time - currentPoint.Time);
             var positionLerped = Vector3.Lerp(lastPoint.Position, currentPoint.Position, (float)percentage);
             var rotationLerped = Quaternion.Lerp(lastPoint.Rotation, currentPoint.Rotation, (float)percentage);
 
@@ -280,7 +337,7 @@ namespace Midikist
             return Tuple.Create(postionFinal, rotationLerped);
         }
 
-        public void CreateSoundBlock(Vector3 position, Quaternion rotation, Instrument instrument, int note)
+        public BlockPropertyJSON CreateSoundBlock(Vector3 position, Quaternion rotation, Instrument instrument, int note)
         {
             float[] options = Enumerable.Repeat<float>(0F, 11).ToArray();
             int soundBlockType = (int)Enum.Parse(typeof(SoundBlockType), SoundBlockTypeConfig.Value);
@@ -289,10 +346,10 @@ namespace Midikist
             options[6] = (float)instrument;
             options[8] = note;
 
-            CreateBlock(SOUND_BLOCK_ID, position, rotation, new Vector3(SoundBlockSizeX.Value, SoundBlockSizeY.Value, SoundBlockSizeZ.Value), null, options);
+            return CreateBlock(SOUND_BLOCK_ID, position, rotation, new Vector3(SoundBlockSizeX.Value, SoundBlockSizeY.Value, SoundBlockSizeZ.Value), null, options);
         }
 
-        public BlockProperties CreateBlock(int blockId, Vector3 position, Quaternion rotation, Vector3 scale, float[] colors = null, float[] options = null)
+        public BlockPropertyJSON CreateBlock(int blockId, Vector3 position, Quaternion rotation, Vector3 scale, float[] colors = null, float[] options = null)
         {
             if (colors == null)
             {
@@ -334,6 +391,9 @@ namespace Midikist
                 eulerAngles = rotation.eulerAngles,
                 properties = properties
             };
+            return blockProperties;
+
+            /*
             var newBlock = LevelEditorInstance.undoRedo.GenerateNewBlock(blockProperties, uniqueIdforBlocks);
 
             newBlock.transform.position = position;
@@ -341,7 +401,7 @@ namespace Midikist
             newBlock.transform.localScale = scale;
             newBlock.SomethingChanged();
 
-            return newBlock;
+            return newBlock;*/
         }
 
 
