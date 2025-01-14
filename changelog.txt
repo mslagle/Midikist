@@ -1,1 +1,3 @@
 - Updated the SDK
+- Fixed teamkist integration
+- Fixed block placement - slightly off (thanks to Ogelgames!)

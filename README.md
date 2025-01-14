@@ -10,9 +10,3 @@ Adds a midi track to your zeepkist track
 
 - A default midi file is already included in the mod, this must be removed.
 - Only a single midi file can be present at a time.
-
-## TODO
-- Allow changing default instrument (only Piano for now)
-- Allow changing block type (only cube)
-
-Awaiting a fix from the config mod*
