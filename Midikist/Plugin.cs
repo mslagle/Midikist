@@ -271,7 +271,7 @@ namespace Midikist
             }
 
             Logger.LogDebug($"Before Point: {lastPoint} - After Point: {currentPoint}");
-            var percentage = Math.Abs(lastPoint.Time + bufferMs - timespan.TotalMilliseconds) / Math.Abs(lastPoint.Time - currentPoint.Time);
+            var percentage = Math.Abs(lastPoint.Time - bufferMs - timespan.TotalMilliseconds) / Math.Abs(lastPoint.Time - currentPoint.Time);
             var positionLerped = Vector3.Lerp(lastPoint.Position, currentPoint.Position, (float)percentage);
             var rotationLerped = Quaternion.Lerp(lastPoint.Rotation, currentPoint.Rotation, (float)percentage);
 
