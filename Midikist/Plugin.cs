@@ -127,6 +127,7 @@ namespace Midikist
                 } catch (Exception ex)
                 {
                     Logger.LogError(ex);
+                    PlayerManager.Instance.messenger.LogError("Error converting midi file, see log entry!", 2.0f);
                 }
 
             }
@@ -208,6 +209,7 @@ namespace Midikist
 
                 before = LevelEditorInstance.undoRedo.ConvertBlockListToJSONList(existingSoundBlocks);
                 beforeSelection = LevelEditorInstance.undoRedo.ConvertSelectionToStringList(existingSoundBlocks);
+                blockList = existingSoundBlocks.ToList();
                 after = Enumerable.Repeat((string)null, before.Count).ToList();
                 afterSelection = new List<string>();
 
