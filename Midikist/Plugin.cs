@@ -233,7 +233,7 @@ namespace Midikist
             Instrument instrumentToUse = (Instrument)Enum.Parse(typeof(Instrument), InstrumentConfig.Value);
 
             // Create the notes
-            List<BlockPropertyJSON> blocks = midi.GetNotes().Select(note =>
+            List<BlockPropertyJSON> blocks = midi.GetNotes().TakeWhile(note =>
             {
                 var timespan = TimeConverter.ConvertTo<MetricTimeSpan>(note.Time, tempoMap);
                 Logger.LogDebug($"Note: {note.NoteName} - {note.Time} - {timespan}");
@@ -243,12 +243,15 @@ namespace Midikist
                 if (lerp == null)
                 {
                     Logger.LogError("Unable to find any close points, assuming recorded run is done!");
-                    return null;
+                    return false;
                 }
-
+                return true;
+            }).Select(note => {
+                var lerp = GetLerped(note, tempoMap, points);
                 int noteNumber = ConvertNote(note.NoteNumber);
                 return CreateSoundBlock(lerp.Item1, lerp.Item2, instrumentToUse, noteNumber);
-            }).Where(x => x != null).ToList();
+            }).ToList();
+            Logger.LogInfo($"Successfully converted {blocks.Count} number of midi notes to blocks");
 
             before = Enumerable.Repeat((string)null, blocks.Count).ToList();
             beforeSelection = new List<string>();
@@ -258,14 +261,16 @@ namespace Midikist
 
             foreach (var block in blocks)
             {
-                string newUID = PlayerManager.Instance.GenerateUniqueIDforBlocks(block.blockID.ToString());
-                BlockProperties bp = LevelEditorInstance.undoRedo.GenerateNewBlock(block, newUID);
+                BlockProperties bp = LevelEditorInstance.undoRedo.GenerateNewBlock(block, block.UID);
+                //Logger.LogInfo($"Generating block with properties --> {Newtonsoft.Json.JsonConvert.SerializeObject(block)}");
 
                 //Add the new block to the list of blocks.
                 blockList.Add(bp);
 
                 //Add a json representation to the after blocks list.
-                after.Add(bp.ConvertBlockToJSON_v15_string());
+                var converted = bp.ConvertBlockToJSON_v15_string();
+                Logger.LogInfo($"Converted to string --> {converted}");
+                after.Add(converted);
             }
 
             //Create a new selection list using the UIDs of the blocks.
@@ -353,27 +358,28 @@ namespace Midikist
         {
             if (colors == null)
             {
-                colors = Enumerable.Repeat<float>(0F, 16).ToArray();
+                colors = Enumerable.Repeat<float>(0F, 17).ToArray();
             }
-            if (colors.Length < 16) 
+            if (colors.Length < 17) 
             {
-                colors.ToList().AddRange(Enumerable.Repeat<float>(0F, colors.Length - 16));
+                colors.ToList().AddRange(Enumerable.Repeat<float>(0F, colors.Length - 17));
             }
+            //Logger.LogInfo($"colors length = {colors.Length}");
 
             if (options == null)
             {
-                options = Enumerable.Repeat<float>(0F, 12).ToArray();
+                options = Enumerable.Repeat<float>(0F, 11).ToArray();
             }
-            if (options.Length < 12)
+            if (options.Length < 11)
             {
-                options.ToList().AddRange(Enumerable.Repeat<float>(0F, colors.Length - 12));
+                options.ToList().AddRange(Enumerable.Repeat<float>(0F, colors.Length - 11));
             }
+            //Logger.LogInfo($"options length = {options.Length}");
 
             string uniqueIdforBlocks = PlayerManager.Instance.GenerateUniqueIDforBlocks(SOUND_BLOCK_ID.ToString());
             Vector3 eulerAngles = rotation.eulerAngles;
-            List<float> properties = new List<float>
+            List<float> properties = new List<float>()
                 {
-                    blockId,
                     position.x, position.y, position.z,
                     eulerAngles.x, eulerAngles.y, eulerAngles.z,
                     scale.x, scale.y, scale.z,
@@ -381,20 +387,21 @@ namespace Midikist
                 };
             properties.AddRange(colors);
             properties.AddRange(options);
+            //Logger.LogInfo($"Properties length = {properties.Count}");
 
             BlockPropertyJSON blockProperties = new BlockPropertyJSON()
             {
                 blockID = blockId,
                 UID = uniqueIdforBlocks,
                 position = position,
-                localScale = new Vector3(1, 1, .1F),
+                localScale = new Vector3(scale.x, scale.y, scale.z),
                 eulerAngles = rotation.eulerAngles,
                 properties = properties
             };
             return blockProperties;
 
             /*
-            var newBlock = LevelEditorInstance.undoRedo.GenerateNewBlock(blockProperties, uniqueIdforBlocks);
+            var newBlock = LevelEditorInstance.undoRedo.GenerateNewBlock(blockProperties, uniqueIdforBlocks);e
 
             newBlock.transform.position = position;
             newBlock.transform.rotation = rotation;
