@@ -28,8 +28,8 @@
     <PackageReference Include="BepInEx.Core" Version="5.*" />
     <PackageReference Include="BepInEx.PluginInfoProps" Version="2.*" />
     <PackageReference Include="Melanchall.DryWetMidi.Nativeless" Version="7.2.0" />
-    <PackageReference Include="Zeepkist.GameLibs" Version="16.67.1694" />
-    <PackageReference Include="ZeepSDK" Version="1.38.3" />
+    <PackageReference Include="Zeepkist.GameLibs" Version="17.5.1800" />
+    <PackageReference Include="ZeepSDK" Version="1.43.0" />
   </ItemGroup>
   
   <ItemGroup Condition="'$(TargetFramework.TrimEnd(`0123456789`))' == 'net'">
