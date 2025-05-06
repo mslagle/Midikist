@@ -21,6 +21,7 @@ using ZeepSDK.LevelEditor;
 using ZeepSDK.Racing;
 using ZeepSDK.Storage;
 using ZeepSDK.Workshop;
+using static UnityEngine.UIElements.UIR.BestFitAllocator;
 using Object = UnityEngine.Object;
 
 namespace Midikist
@@ -261,15 +262,15 @@ namespace Midikist
 
             foreach (var block in blocks)
             {
-                BlockProperties bp = LevelEditorInstance.undoRedo.GenerateNewBlock(block, block.UID);
-                //Logger.LogInfo($"Generating block with properties --> {Newtonsoft.Json.JsonConvert.SerializeObject(block)}");
+                BlockProperties bp = LevelEditorInstance.undoRedo.GenerateNewBlock(block, block.u);
+                Logger.LogInfo($"Generating block with properties --> {Newtonsoft.Json.JsonConvert.SerializeObject(block)}");
 
                 //Add the new block to the list of blocks.
                 blockList.Add(bp);
 
                 //Add a json representation to the after blocks list.
-                var converted = bp.ConvertBlockToJSON_v15_string();
-                Logger.LogInfo($"Converted to string --> {converted}");
+                var converted = bp.ConvertBlockToJSON_v15_string(true);
+                //Logger.LogInfo($"Converted to string --> {converted}");
                 after.Add(converted);
             }
 
@@ -344,6 +345,7 @@ namespace Midikist
 
         public BlockPropertyJSON CreateSoundBlock(Vector3 position, Quaternion rotation, Instrument instrument, int note)
         {
+            /*
             float[] options = Enumerable.Repeat<float>(0F, 11).ToArray();
             int soundBlockType = (int)Enum.Parse(typeof(SoundBlockType), SoundBlockTypeConfig.Value);
 
@@ -351,7 +353,34 @@ namespace Midikist
             options[6] = (float)instrument;
             options[8] = note;
 
-            return CreateBlock(SOUND_BLOCK_ID, position, rotation, new Vector3(SoundBlockSizeX.Value, SoundBlockSizeY.Value, SoundBlockSizeZ.Value), null, options);
+            return CreateSoundBlock2(SOUND_BLOCK_ID, position, rotation, new Vector3(SoundBlockSizeX.Value, SoundBlockSizeY.Value, SoundBlockSizeZ.Value), null, options);
+            */
+
+            int soundBlockType = (int)Enum.Parse(typeof(SoundBlockType), SoundBlockTypeConfig.Value);
+            string uniqueIdforBlocks = PlayerManager.Instance.GenerateUniqueIDforBlocks(SOUND_BLOCK_ID.ToString());
+            Vector3 eulerAngles = rotation.eulerAngles;
+
+            //Logger.LogInfo($"Properties length = {properties.Count}");            
+            BlockPropertyJSON blockProperties = new BlockPropertyJSON()
+            {
+                i = SOUND_BLOCK_ID,
+                u = uniqueIdforBlocks,
+                p = new CV3(position),
+                r = new CV3(rotation.eulerAngles),
+                s = new CV3(new Vector3(SoundBlockSizeX.Value, SoundBlockSizeY.Value, SoundBlockSizeZ.Value)), 
+                d = new PropertyDictionariesJSON()
+                {
+                    n = new Dictionary<string, int>()
+                    {
+                        { "n6", (int)instrument },
+                        { "n8", note },
+                        { $"a{soundBlockType}", 1 }
+
+                    },
+                }
+            };
+
+            return blockProperties;
         }
 
         public BlockPropertyJSON CreateBlock(int blockId, Vector3 position, Quaternion rotation, Vector3 scale, float[] colors = null, float[] options = null)
@@ -372,7 +401,7 @@ namespace Midikist
             }
             if (options.Length < 11)
             {
-                options.ToList().AddRange(Enumerable.Repeat<float>(0F, colors.Length - 11));
+                options.ToList().AddRange(Enumerable.Repeat<float>(0F, options.Length - 11));
             }
             //Logger.LogInfo($"options length = {options.Length}");
 
@@ -387,17 +416,23 @@ namespace Midikist
                 };
             properties.AddRange(colors);
             properties.AddRange(options);
-            //Logger.LogInfo($"Properties length = {properties.Count}");
-
+            //Logger.LogInfo($"Properties length = {properties.Count}");            
             BlockPropertyJSON blockProperties = new BlockPropertyJSON()
             {
-                blockID = blockId,
-                UID = uniqueIdforBlocks,
-                position = position,
-                localScale = new Vector3(scale.x, scale.y, scale.z),
-                eulerAngles = rotation.eulerAngles,
-                properties = properties
+                i = blockId,
+                u = uniqueIdforBlocks,
+                p = new CV3(position),
+                r = new CV3(rotation.eulerAngles), 
+                s = new CV3(scale)
             };
+
+            Logger.LogInfo($"Before Block properties: {Newtonsoft.Json.JsonConvert.SerializeObject(blockProperties)}");
+            Logger.LogInfo($"Before properties: {Newtonsoft.Json.JsonConvert.SerializeObject(properties)}");
+            blockProperties.SetPropertyList(properties);
+
+            Logger.LogInfo($"After Block properties: {Newtonsoft.Json.JsonConvert.SerializeObject(blockProperties)}");
+
+
             return blockProperties;
 
             /*
